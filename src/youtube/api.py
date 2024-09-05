@@ -86,5 +86,13 @@ class Youtube:
         searcher = YTSearch(webdriver)
         return searcher.search_id(track)
 
-    def create_playlist(self):
-        pass
+    def create_playlist(self, playlist):
+        # create playlist
+        playlist_id = self.playlist.insert(
+            title=playlist.title, description=playlist.description
+        )
+
+        #
+        for track in playlist.tracks:
+            video_id = self.search_video_by_web_scraping(track)
+            self.playlist_items.insert(playlist_id, video_id)
