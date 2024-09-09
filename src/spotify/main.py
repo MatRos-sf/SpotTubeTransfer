@@ -11,3 +11,14 @@ class Artist:
 class Track:
     title: str
     artists: List[Artist]
+
+
+@dataclass
+class Playlist:
+    name: str
+    description: str
+    items: List[Track]
+
+    @property
+    def songs(self) -> int:
+        return len(self.items)
