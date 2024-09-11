@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
@@ -7,7 +8,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from src.spotify.main import Track
+from src.spotify.models import Track
 from src.youtube.exception import VideoNotFoundException
 
 
@@ -28,27 +29,32 @@ class WebdriverFactory:
                 raise ValueError(f"Unsupported driver name: {name_driver}")
 
 
+class UrlBuilder:
+    def __init__(self, base_url: str = "https://www.youtube.com/results?search_query="):
+        self.base_url = base_url
+
+    def build(self, track: Track):
+        authors = "+".join([artist.name.replace(" ", "+") for artist in track.artists])
+        title = track.title.replace(" ", "+")
+        search_query = "+".join(filter(None, [authors, title]))
+        return f"{self.base_url}{search_query}"
+
+
 class YTSearch:
-    URL = "https://www.youtube.com/results?search_query="
     SEARCH_PATTERN = re.compile(r"https\:\/\/www\.youtube.com\/watch\?v\=(.*)&pp=.*")
 
-    def __init__(self, webdriver_name: str):
-        self.driver = WebdriverFactory.create_webdriver(webdriver_name)
-
-    def construct_seach_url(self, track: Track):
-        authors = "+".join(track.artists).replace(" ", "+")
-        title = track.title.replace(" ", "+")
-        return f"{self.URL}{authors}+{title}"
+    def __init__(self, webdriver_name: Optional[str] = "Chrome"):
+        self.driver = WebdriverFactory.create_webdriver(webdriver_name).driver
+        self.url_builder = UrlBuilder()
 
     def find_id_by_href(self, href) -> str:
         match = self.SEARCH_PATTERN.search(href)
         if match:
             return match.group(1)
-        else:
-            raise ValueError("Invalid YouTube URL")
+        raise ValueError("Invalid YouTube URL")
 
     def search_id(self, track: Track) -> str:
-        url = self.construct_seach_url(track)
+        url = self.url_builder.build(track)
         self.driver.get(url)
 
         try:
@@ -70,4 +76,5 @@ class YTSearch:
             href = title_element.get_attribute("href")
             if href:
                 return self.find_id_by_href(href)
+
         raise VideoNotFoundException("No suitable video found.")

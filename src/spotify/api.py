@@ -1,19 +1,8 @@
-from dataclasses import dataclass
 from http import HTTPStatus
-from typing import List
 
 import requests
 
-
-@dataclass
-class Artist:
-    name: str
-
-
-@dataclass
-class Track:
-    title: str
-    artists: List[Artist]
+from .models import Artist, Playlist, Track
 
 
 class Spotify:
@@ -44,16 +33,22 @@ class Spotify:
         else:
             raise Exception("An error occurred: {}".format(response.status_code))
 
-    def capture_playlist(self, playlist_id: str) -> List[Track]:
+    def capture_playlist(self, playlist_id: str) -> Playlist:
         # create headers
         headers = {"Authorization": "Bearer {}".format(self.access_token)}
-        response = requests.get(
-            self.PLAYLIST_URL + f"{playlist_id}/tracks", headers=headers, timeout=60
+        request = requests.get(
+            self.PLAYLIST_URL + f"{playlist_id}", headers=headers, timeout=60
         )
 
+        response = request.json()
         tracks = []
-        for item in response.json()["items"]:
+        for item in response["tracks"]["items"]:
             title = item["track"]["name"]
             artists = [Artist(artist["name"]) for artist in item["track"]["artists"]]
             tracks.append(Track(title, artists))
-        return tracks
+
+        return Playlist(
+            name=response.get("name", ""),
+            description=response.get("description", ""),
+            items=tracks,
+        )

@@ -1,15 +1,27 @@
 from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional
 
 import google_auth_oauthlib.flow as google_auth
 import googleapiclient.discovery as google_client
+from googleapiclient.errors import HttpError
 
+from src.youtube.exception import ExceedQuotaException
 from src.youtube.search import YTSearch
+
+from ..spotify.models import Playlist
 
 
 class YouTubeOperation(ABC):
     @abstractmethod
     def insert(self, *args, **kwargs):
         pass
+
+    def execute(self, request) -> Optional[Dict[str, Any]]:
+        try:
+            response = request.execute()
+        except HttpError:
+            return None
+        return response
 
 
 class Playlists(YouTubeOperation):
@@ -20,7 +32,7 @@ class Playlists(YouTubeOperation):
         self.part = "snippet,status"
         self.id = None
 
-    def insert(self, *args, **kwargs):
+    def insert(self, *args, **kwargs) -> Optional[Dict[str, Any]]:
         body = {
             "snippet": {
                 "title": kwargs.get("title", "Sample Playlist create via SpotTube."),
@@ -32,9 +44,12 @@ class Playlists(YouTubeOperation):
             "status": {"privacyStatus": kwargs.get("status", "private")},
         }
         request = self.youtube.playlists().insert(part=self.part, body=body)
-        response = request.execute()
-        # set new ID
-        self.id = response.get("id")
+
+        response = self.execute(request)
+        # if response is successful, it will set id
+        if response:
+            self.id = response.get("id")
+
         return response
 
 
@@ -51,7 +66,7 @@ class PlayListItems(YouTubeOperation):
                 "resourceId": {"kind": "youtube#video", "videoId": video_id},
             }
         }
-        request = self.youtube.playListItems().insert(part=self.part, body=body)
+        request = self.youtube.playlistItems().insert(part=self.part, body=body)
         response = request.execute()
 
         return response
@@ -70,7 +85,7 @@ class Youtube:
         self.playlist_items = PlayListItems(self.youtube)
 
     def _build_google_api_client(self):
-        flow = google_auth.flow.InstalledAppFlow.from_client_secrets_file(
+        flow = google_auth.InstalledAppFlow.from_client_secrets_file(
             self.secret_file, self.SCOPE
         )
         credentials = flow.run_local_server()
@@ -86,13 +101,19 @@ class Youtube:
         searcher = YTSearch(webdriver)
         return searcher.search_id(track)
 
-    def create_playlist(self, playlist):
+    def create_playlist(self, playlist: Playlist) -> Optional[str]:
         # create playlist
-        playlist_id = self.playlist.insert(
-            title=playlist.title, description=playlist.description
+        response = self.playlist.insert(
+            title=playlist.name, description=playlist.description
         )
+        return response.get("id") if response else None
 
-        #
-        for track in playlist.tracks:
+    def add_tracks_to_playlist(self, playlist_id, playlist: Playlist) -> None:
+        for track in playlist.items:
             video_id = self.search_video_by_web_scraping(track)
-            self.playlist_items.insert(playlist_id, video_id)
+            # create request to YouTube api and add song
+            song = self.playlist_items.insert(playlist_id, video_id)
+            if not song:
+                raise ExceedQuotaException(
+                    "The requested cannot be completed because you have exceeded the quota"
+                )
