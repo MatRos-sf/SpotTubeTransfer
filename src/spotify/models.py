@@ -12,6 +12,9 @@ class Track:
     title: str
     artists: List[Artist]
 
+    def __str__(self):
+        return f"{self.title} by {', '.join(artist.name for artist in self.artists)}"
+
 
 @dataclass
 class Playlist:
