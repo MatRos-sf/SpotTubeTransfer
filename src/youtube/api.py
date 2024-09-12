@@ -10,6 +10,9 @@ from src.youtube.search import YTSearch
 
 from ..spotify.models import Playlist
 
+pass_icon = "✔️"  # nosec
+fail_icon = "❌"  # nosec
+
 
 class YouTubeOperation(ABC):
     @abstractmethod
@@ -112,8 +115,11 @@ class Youtube:
         for track in playlist.items:
             video_id = self.search_video_by_web_scraping(track)
             # create request to YouTube api and add song
+            print(f"\t Adding song: {track} ", end="")
             song = self.playlist_items.insert(playlist_id, video_id)
             if not song:
+                print(fail_icon)
                 raise ExceedQuotaException(
                     "The requested cannot be completed because you have exceeded the quota"
                 )
+            print(pass_icon)
