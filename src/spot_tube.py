@@ -75,7 +75,7 @@ class SpotTube(ConsoleApp):
         except ExceedQuotaException:
             print("Quota exceeded.")
             return False
-
+        print(f"Playlist {playlist.name} has been successfully transferred to YouTube.")
         return True
 
     def menu(self, option: str) -> bool:
