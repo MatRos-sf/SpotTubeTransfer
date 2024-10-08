@@ -1,16 +1,8 @@
 from typing import List
 
 import sqlalchemy as sa
-from sqlalchemy.orm import (
-    Mapped,
-    declarative_base,
-    mapped_column,
-    relationship,
-    sessionmaker,
-)
+from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 
-db = sa.create_engine("sqlite://spotTube.db")
-Session = sessionmaker(bind=db)
 Base = declarative_base()
 
 association_table = sa.Table(
