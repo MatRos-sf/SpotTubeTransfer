@@ -1,4 +1,5 @@
 from collections import Counter
+from typing import Optional, Tuple
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -32,89 +33,111 @@ class Database:
             self.session.commit()
         self.session.close()
 
-    def get_or_create(self, session, model, **kwargs):
-        instance = session.query(model).filter_by(**kwargs).first()
+
+class ArtistManager:
+    def get_or_create_artist(self, session: Session, artist_name: str) -> Artist:
+        instance = session.query(Artist).filter_by(name=artist_name).first()
         if instance:
-            print(f"Instance of {model.__name__} already exists: {kwargs}")
             return instance
         else:
-            instance = model(**kwargs)
+            instance = Artist(name=artist_name)
             session.add(instance)
             return instance
 
 
-class STdb:
-    def __init__(self, db_name="sqlite:///spotTube.db"):
-        self.db = Database(db_name)
+class TrackManager:
+    def __init__(self, artist_manager: ArtistManager):
+        self.artist_manager = artist_manager
 
-    def search_track(self, track: SpotifyTrack):
+    def search_track(
+        self, session: Session, track: SpotifyTrack
+    ) -> Optional[Tuple[int, str]]:
         """
         Methods to search a track. When a track is found it will be returned the tuple of (id, youtube_id) track. Otherwise it will be None.
         Args:
+            session:                    Session
             track (SpotifyTrack):       The track to search.
         Returns:
             Optional[Tuple[int, str]]:  The tuple of id and youtube_id track if found, otherwise None.
         """
         artists = track.extract_artists()
-        with self.db as session:
-            # find all track with the particular title and whose artists are available
-            track_query = (
-                session.query(Track)
-                .join(Track.artists)
-                .filter(Artist.name.in_(artists), Track.title == track.title)
-                .all()
-            )
-            main_artists = Counter(artists)
-            # looking for track
-            for music in track_query:
-                track_artists = Counter([singer.name for singer in music.artists])
-                if track_artists == main_artists:
-                    return music.id, music.youtube_id
-            return None
+        track_query = (
+            session.query(Track)
+            .join(Track.artists)
+            .filter(Artist.name.in_(artists), Track.title == track.title)
+            .all()
+        )
+        main_artists = Counter(artists)
+        # looking for track
+        for music in track_query:
+            track_artists = Counter([singer.name for singer in music.artists])
+            if track_artists == main_artists:
+                return music.id, music.youtube_id
+        return None
 
-    def add_track(self, track: SpotifyTrack, youtube_id: str) -> None:
+    def add_track(
+        self, session: Session, new_track: SpotifyTrack, youtube_id: str
+    ) -> None:
         """
         Methods to add a new track
-
         Args:
-            track (SpotifyTrack):       The track to add.
+            session:                    Session
+            new_track (SpotifyTrack):       The track to add.
             youtube_id (str):           The YouTube video id of the track.
         Returns:
             None
         """
-        with self.db as session:
-            artists = [
-                self.db.get_or_create(session, Artist, name=art.name)
-                for art in track.artists
-            ]
+        artists = [
+            self.artist_manager.get_or_create_artist(session, art.name)
+            for art in new_track.artists
+        ]
 
-            track = Track(title=track.title, youtube_id=youtube_id)
-            track.artists.extend([*artists])
-            session.add(track)
+        new_track = Track(title=new_track.title, youtube_id=youtube_id)
+        new_track.artists.extend([*artists])
+        session.add(new_track)
+
+    def update_upload(self, session: Session, pk: int) -> None:
+        track = session.query(Track).filter(Track.id == pk).first()
+        track.uploaded += 1
+
+
+class STdb:
+    def __init__(self, database: Database):
+        self.db = database
+        self.artist_manager = ArtistManager()
+        self.track_manager = TrackManager(self.artist_manager)
+
+    def search_track(self, track: SpotifyTrack) -> Optional[Tuple[int, str]]:
+        with self.db as session:
+            return self.track_manager.search_track(session, track)
+
+    def add_track(self, new_track: SpotifyTrack, youtube_id: str):
+        with self.db as session:
+            self.track_manager.add_track(session, new_track, youtube_id)
 
     def update_upload(self, pk: int) -> None:
         with self.db as session:
-            track = session.query(Track).filter(Track.id == pk).first()
-            track.uploaded += 1
+            self.track_manager.update_upload(session, pk)
 
 
-# Przykład użycia:
+if __name__ == "__main__":
+    song1 = SpotifyTrack(
+        title="I Don't Care",
+        artists=[SpotifyArtist(name="Ed Sheeran"), SpotifyArtist(name="Justin Bieber")],
+    )
 
-song1 = SpotifyTrack(
-    title="I Don't Care",
-    artists=[SpotifyArtist(name="Ed Sheeran"), SpotifyArtist(name="Justin Bieber")],
-)
+    song2 = SpotifyTrack(
+        title="I Don't Care", artists=[SpotifyArtist(name="Ed Sheeran")]
+    )
+    #
+    stdb = STdb(Database())
+    # print(stdb.search_track(song1))
+    #
+    # Dodaj pierwszy utwór
+    stdb.add_track(song1, "y83x7MgzWOA")
 
-song2 = SpotifyTrack(title="I Don't Care", artists=[SpotifyArtist(name="Ed Sheeran")])
-#
-stdb = STdb()
-# print(stdb.search_track(song1))
-#
-# Dodaj pierwszy utwór
-# stdb.add_track(song1, "y83x7MgzWOA")
+    # Dodaj drugi utwór
+    stdb.add_track(song2, "ymjNGjuBCTo")
 
-# Dodaj drugi utwór
-# stdb.add_track(song2, "ymjNGjuBCTo")
-
-pk, _ = stdb.search_track(song2)
-stdb.update_upload(pk)
+    pk, _ = stdb.search_track(song2)
+    stdb.update_upload(pk)
