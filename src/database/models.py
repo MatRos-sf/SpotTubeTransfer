@@ -34,6 +34,8 @@ class Track(Base):
     artists: Mapped[List["Artist"]] = relationship(
         "Artist", secondary=association_table, back_populates="tracks"
     )
+    youtube_id: Mapped[str]
+    uploaded: Mapped[int] = mapped_column(default=1)
 
     def __repr__(self):
         return f"Track(id={self.id}, title={self.title})"
