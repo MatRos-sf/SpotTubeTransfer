@@ -15,6 +15,9 @@ class Track:
     def __str__(self):
         return f"{self.title} by {', '.join(artist.name for artist in self.artists)}"
 
+    def extract_artists(self) -> List[str]:
+        return [artist.name for artist in self.artists]
+
 
 @dataclass
 class Playlist:
