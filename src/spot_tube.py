@@ -3,6 +3,7 @@ from typing import Dict
 
 from pyfiglet import Figlet
 
+from src.database.connection import STdb
 from src.spotify.api import Spotify
 from src.youtube.api import Youtube
 from src.youtube.exception import ExceedQuotaException
@@ -56,7 +57,13 @@ class ConsoleApp(ABC):
 
 
 class SpotTube(ConsoleApp):
-    def __init__(self, client_id: str, client_secret: str, credential_file_name: str):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        credential_file_name: str,
+        database: STdb,
+    ):
         super(SpotTube, self).__init__(
             {"transfer": "Transfer playlist from Spotify to YouTube"}
         )
@@ -66,6 +73,7 @@ class SpotTube(ConsoleApp):
             raise Exception(f"Please implement method: {e.name}") from e
         self.spotify = Spotify(client_id, client_secret)
         self.youtube = Youtube(credential_file_name)
+        self.db = database
 
     def do_transfer(self, id_spotify_playlist):
         playlist = self.spotify.capture_playlist(id_spotify_playlist)
