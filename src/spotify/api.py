@@ -5,6 +5,14 @@ import requests
 from .models import Artist, Playlist, Track
 
 
+class SpotifyException(Exception):
+    """Raised when id of playlist is incorrect"""
+
+    def __init__(self, message):
+        super().__init__(message)
+        self.message = message
+
+
 class Spotify:
     TOKEN_URL = "https://accounts.spotify.com/api/token"  # nosec
     PLAYLIST_URL = "https://api.spotify.com/v1/playlists/"  # nosec
@@ -41,8 +49,11 @@ class Spotify:
         )
 
         response = request.json()
+        # check if response has status error
+        if response.get("error"):
+            raise SpotifyException("The ID of the playlist is incorrect.")
+
         tracks = []
-        # print(response)
         for item in response["tracks"]["items"]:
             title = item["track"]["name"]
             artists = [Artist(artist["name"]) for artist in item["track"]["artists"]]
