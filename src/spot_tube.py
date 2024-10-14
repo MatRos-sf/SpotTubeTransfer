@@ -3,9 +3,11 @@ from typing import Dict
 
 from pyfiglet import Figlet
 
+from src.database.connection import STdb
 from src.spotify.api import Spotify
 from src.youtube.api import Youtube
-from src.youtube.exception import ExceedQuotaException
+
+# from src.youtube.exception import ExceedQuotaException
 
 
 def welcome_screen(app_name):
@@ -56,7 +58,13 @@ class ConsoleApp(ABC):
 
 
 class SpotTube(ConsoleApp):
-    def __init__(self, client_id: str, client_secret: str, credential_file_name: str):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        credential_file_name: str,
+        database: STdb,
+    ):
         super(SpotTube, self).__init__(
             {"transfer": "Transfer playlist from Spotify to YouTube"}
         )
@@ -66,15 +74,40 @@ class SpotTube(ConsoleApp):
             raise Exception(f"Please implement method: {e.name}") from e
         self.spotify = Spotify(client_id, client_secret)
         self.youtube = Youtube(credential_file_name)
+        self.db = database
 
     def do_transfer(self, id_spotify_playlist):
         playlist = self.spotify.capture_playlist(id_spotify_playlist)
         id_playlist = self.youtube.create_playlist(playlist)
-        try:
-            self.youtube.add_tracks_to_playlist(id_playlist, playlist)
-        except ExceedQuotaException:
-            print("Quota exceeded.")
-            return False
+        for track in playlist.items:
+            # 1st search on db
+            search_result = self.db.search_track(track)
+            if search_result:
+                print(
+                    f"Track '{track}' already in the database. Using {search_result[1]}"
+                )
+                track_id, youtube_id = search_result
+                status_insert = self.youtube.add_track_to_playlist(
+                    id_playlist, youtube_id
+                )
+                if status_insert:
+                    print(f"Track '{track}' has been added to playlist.")
+                    self.db.update_upload(track_id)
+            else:
+                # exception worning!!!
+                youtube_id = self.youtube.search_video_by_web_scraping(track)
+                # add new song to db
+                self.db.add_track(track, youtube_id)
+                status_insert = self.youtube.add_track_to_playlist(
+                    id_playlist, youtube_id
+                )
+                if status_insert:
+                    print(f"Track '{track}' has been added to playlist.")
+        # try:
+        #     self.youtube.add_tracks_to_playlist(id_playlist, playlist)
+        # except ExceedQuotaException:
+        #     print("Quota exceeded.")
+        #     return False
         print(f"Playlist {playlist.name} has been successfully transferred to YouTube.")
         return True
 

@@ -42,6 +42,7 @@ class Spotify:
 
         response = request.json()
         tracks = []
+        # print(response)
         for item in response["tracks"]["items"]:
             title = item["track"]["name"]
             artists = [Artist(artist["name"]) for artist in item["track"]["artists"]]
