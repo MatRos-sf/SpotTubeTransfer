@@ -4,7 +4,7 @@ from typing import Dict
 from pyfiglet import Figlet
 
 from src.database.connection import STdb
-from src.spotify.api import Spotify
+from src.spotify.api import Spotify, SpotifyException
 from src.youtube.api import Youtube
 
 # from src.youtube.exception import ExceedQuotaException
@@ -77,7 +77,15 @@ class SpotTube(ConsoleApp):
         self.db = database
 
     def do_transfer(self, id_spotify_playlist):
-        playlist = self.spotify.capture_playlist(id_spotify_playlist)
+        # capture id of playlist
+        try:
+            playlist = self.spotify.capture_playlist(id_spotify_playlist)
+        except SpotifyException:
+            print(
+                "Invalid ID of spotify playlist. Please check id of playlist and try again."
+            )
+            return False
+
         id_playlist = self.youtube.create_playlist(playlist)
         for track in playlist.items:
             # 1st search on db
@@ -136,8 +144,8 @@ class SpotTube(ConsoleApp):
 
     @welcome_screen(app_name="SpotTube")
     def run(self):
-        self.print_option()
         while True:
+            self.print_option()
             option = input("Chose an option: ")
             if option.upper() == "QUIT":
                 break
