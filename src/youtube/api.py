@@ -126,4 +126,5 @@ class Youtube:
 
     def add_track_to_playlist(self, playlist_id: str, youtube_id: str):
         song = self.playlist_items.insert(playlist_id, youtube_id)
+        print(f"YT: {song}")
         return True if song else False
