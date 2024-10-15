@@ -10,9 +10,6 @@ from src.youtube.search import YTSearch
 
 from ..spotify.models import Playlist
 
-pass_icon = "✔️"  # nosec
-fail_icon = "❌"  # nosec
-
 
 class YouTubeOperation(ABC):
     @abstractmethod
@@ -106,9 +103,13 @@ class Youtube:
 
     def create_playlist(self, playlist: Playlist) -> Optional[str]:
         # create playlist
-        response = self.playlist.insert(
-            title=playlist.name, description=playlist.description
-        )
+        try:
+            response = self.playlist.insert(
+                title=playlist.name, description=playlist.description
+            )
+        except HttpError:
+            response = None
+
         return response.get("id") if response else None
 
     def add_tracks_to_playlist(self, playlist_id, playlist: Playlist) -> None:
@@ -118,11 +119,9 @@ class Youtube:
             print(f"\t Adding song: {track} ", end="")
             song = self.playlist_items.insert(playlist_id, video_id)
             if not song:
-                print(fail_icon)
                 raise ExceedQuotaException(
                     "The requested cannot be completed because you have exceeded the quota"
                 )
-            print(pass_icon)
 
     def add_track_to_playlist(self, playlist_id: str, youtube_id: str):
         song = self.playlist_items.insert(playlist_id, youtube_id)
