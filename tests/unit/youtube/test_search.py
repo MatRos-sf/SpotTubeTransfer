@@ -1,12 +1,23 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from selenium import webdriver
 
 from src.spotify.models import Artist, Track
 from src.youtube.exception import VideoNotFoundException
-from src.youtube.search import UrlBuilder, YTSearch
+from src.youtube.search import UrlBuilder, WebdriverFactory, YTSearch
 
 SAMPLE_TRACK = Track("Never Gonna Give You Up", [Artist("Rick Astley")])
+
+
+class TestWebdriverFactory:
+    def test_create_chrome_webdriver(self):
+        driver_factory = WebdriverFactory.create_webdriver("Chrome")
+        assert isinstance(driver_factory.driver, webdriver.Chrome)
+
+    def test_create_unsupported_webdriver(self):
+        with pytest.raises(ValueError, match="Unsupported driver name: UNSUPPORTED"):
+            WebdriverFactory.create_webdriver("UNSUPPORTED")
 
 
 class TestSearchUrlBuilder:
