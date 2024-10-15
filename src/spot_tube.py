@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict
 
+from googleapiclient.errors import HttpError
 from pyfiglet import Figlet
 
 from src.database.connection import STdb
@@ -76,7 +77,7 @@ class SpotTube(ConsoleApp):
         self.youtube = Youtube(credential_file_name)
         self.db = database
 
-    def do_transfer(self, id_spotify_playlist):
+    def do_transfer(self, id_spotify_playlist) -> bool:
         # capture id of playlist
         try:
             playlist = self.spotify.capture_playlist(id_spotify_playlist)
@@ -87,35 +88,32 @@ class SpotTube(ConsoleApp):
             return False
 
         id_playlist = self.youtube.create_playlist(playlist)
+        if not id_playlist:
+            print("Failed to create playlist on YouTube.")
+            return False
+
         for track in playlist.items:
             # 1st search on db
             search_result = self.db.search_track(track)
-            if search_result:
-                print(
-                    f"Track '{track}' already in the database. Using {search_result[1]}"
-                )
-                track_id, youtube_id = search_result
-                status_insert = self.youtube.add_track_to_playlist(
-                    id_playlist, youtube_id
-                )
-                if status_insert:
-                    print(f"Track '{track}' has been added to playlist.")
-                    self.db.update_upload(track_id)
-            else:
-                # exception worning!!!
+            if not search_result:
                 youtube_id = self.youtube.search_video_by_web_scraping(track)
-                # add new song to db
                 self.db.add_track(track, youtube_id)
+            else:
+                track_id, youtube_id = search_result
+
+            try:
                 status_insert = self.youtube.add_track_to_playlist(
                     id_playlist, youtube_id
                 )
-                if status_insert:
-                    print(f"Track '{track}' has been added to playlist.")
-        # try:
-        #     self.youtube.add_tracks_to_playlist(id_playlist, playlist)
-        # except ExceedQuotaException:
-        #     print("Quota exceeded.")
-        #     return False
+            except HttpError as e:
+                print(f"Failed to add track '{track}' to playlist: {e}")
+                return False
+
+            if status_insert:
+                print(f"Track '{track}' has been added to playlist. ")
+                if search_result:
+                    self.db.update_upload(track_id)
+
         print(f"Playlist {playlist.name} has been successfully transferred to YouTube.")
         return True
 
